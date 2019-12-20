@@ -10,8 +10,8 @@
 # Choose the number of beats to generate and the initial
 # conditions:  - 'select'   : Start from the first 2 measures of a selected song
 #              - 'sample'   : Start from the first 2 measures of a random song
-#                               (You should first do the pre-processing to 
-#                                convert every song to unmpy object)
+#                               (For both you should first do the pre-processing 
+#                                to convert every song to unmpy object)
 #              - 'generate' : Start from scratch 
 #
 
@@ -44,8 +44,11 @@ else:
 
 ########## PARAMETERS (set what you want) ############
 
-mode = 'sample'
-sample_notes = True              # if True, sample notes (do not pick ones with higher probs)
+mode = 'select'
+
+sample_R_notes = True            # if True, sample notes (do not pick ones with higher probs)
+sample_L_notes = True   
+
 apply_probs_corrections = True   # if True, apply penalization (if argmax) or bonus (if sample)
                                  # to notes that are played for the i-th consecutive time
 
@@ -130,11 +133,11 @@ def bonus_val(i, a=0.25):
 # ---------------------------------------------------
 
 # Select notes to play using the outputs of the network 
-def select_notes_to_play(out_piano_probs, out_num_notes, play_times):
+def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_times):
 
     # Convert net output to numpy arrays
-    piano_probs = F.softmax(out_piano_probs[:,-1,:]).detach().numpy().squeeze()
-    num_notes = out_num_notes[:,-1].detach().numpy().squeeze()
+    piano_probs = F.softmax(out_piano_probs[0,-1,:]).detach().numpy().squeeze()
+    num_notes = out_num_notes[0,-1].detach().numpy().squeeze()
     num_notes = int(num_notes.round())
 
 
@@ -143,8 +146,8 @@ def select_notes_to_play(out_piano_probs, out_num_notes, play_times):
 
         # If flag is True, apply penalty to notes that are played for the i-th time
         if apply_probs_corrections: 
-            piano_probs = piano_probs * [penalty_val(play_times[i]) for i in range(88)]
-            print([penalty_val(times_for_penal[i]) for i in range(88)])
+            piano_probs = piano_probs * [penalty_val(played_times[i]) for i in range(88)]
+            print([penalty_val(played_times[i]) for i in range(88)])
 
         # Take notes with highest (penalized) probability
         sorted_probs = piano_probs.argsort()[::-1]
@@ -154,9 +157,9 @@ def select_notes_to_play(out_piano_probs, out_num_notes, play_times):
 
         # if flag is True, apply bonus to notes that have been sampled in previous timesteps
         if apply_probs_corrections:
-            piano_probs = piano_probs * [bonus_val(play_times[i]) for i in range(88)]
+            piano_probs = piano_probs * [bonus_val(played_times[i]) for i in range(88)]
             piano_probs = piano_probs / np.sum(piano_probs)
-            print([bonus_val(play_times[i]) for i in range(88)])
+            print([bonus_val(played_times[i]) for i in range(88)])
        
         notes = np.empty(num_notes)
 
@@ -181,10 +184,8 @@ def select_notes_to_play(out_piano_probs, out_num_notes, play_times):
 
 
 # Load trained network (use same network parameters)
-hidden_units = 128
-layers_num = 2
 dropout_prob = 0.4
-net = RNN_net(dropout_prob)
+net = RNN_two_hands_net(dropout_prob)
 net.to(device)
 
 net.load_state_dict(torch.load(model_dir, map_location=device))
@@ -197,7 +198,8 @@ sample = torch.Tensor([full_sample])
 
 # initial conditions
 rnn_state = None
-play_times = np.zeros(88, dtype=int)
+R_played_times = np.zeros(88, dtype=int)    # number of times that a note is played consecutively
+L_played_times = np.zeros(88, dtype=int)    #  by corresponding hand during sample generation
 
 
 # Use the network to continue the original sample, producing one (1/16)th at each iteration
@@ -205,30 +207,37 @@ play_times = np.zeros(88, dtype=int)
 for i in range(4*n_beats):
 
     # Predict num of notes and probs of each notes
-    out_piano, out_num_notes, rnn_state = net(sample, rnn_state)
+    out_R_piano, out_R_num_notes, out_L_piano, out_L_num_notes, rnn_state = net(sample, rnn_state)
 
     # Use function to select the notes to play given the output of the net
-    notes = select_notes_to_play(out_piano, out_num_notes, play_times)
+    R_notes = select_notes_to_play(out_R_piano, out_R_num_notes, sample_R_notes, R_played_times)
+    L_notes = select_notes_to_play(out_L_piano, out_L_num_notes, sample_L_notes, L_played_times)
 
-    print(out_num_notes[:,-1])
-    print(notes)
+    #print(out_num_notes[:,-1])
+    print(R_notes)
+    print(L_notes)
 
     # Set the sampled notes to 1 and the others to 0
-    next_piano = np.zeros(88, dtype=int)
-    next_piano[notes.astype(int)] = 1
+    next_R_piano = np.zeros(88, dtype=int)
+    next_L_piano = np.zeros(88, dtype=int)
+    next_R_piano[R_notes.astype(int)] = 1
+    next_L_piano[L_notes.astype(int)] = 1
 
-    # Prepare sample for next iteration and update play_times of each note (for penalty)
-    sample = torch.Tensor([[next_piano]])
-    play_times = np.where(next_piano==0, 0, play_times+1)
+    # Prepare sample for next iteration and update played_times of each note (for penalty/bonus)
+    sample = torch.Tensor([[[next_R_piano], [next_L_piano]]])
+    R_played_times = np.where( next_R_piano, R_played_times+1, 0)
+    L_played_times = np.where( next_L_piano, L_played_times+1, 0)
 
     # Store the notes of the new timestep
-    full_sample = np.append(full_sample, [next_piano], axis=0)
+    print(np.array([[next_R_piano],[next_L_piano]]).shape)
+    full_sample = np.append(full_sample, [[next_R_piano],[next_L_piano]] , axis=1)
 
 
 # Now that we have the full sample, convert it to file midi
-new_song = np.zeros((len(full_sample)*6, 128))
-new_song[:,21:109] = np.repeat(full_sample, 6, axis=0)
-new_midi = pypianoroll.Track(new_song)
-new_midi = pypianoroll.Multitrack(tracks=[new_midi])
-pypianoroll.write(new_midi, 'generated_tracks/gen_sample.mid')
+new_song = np.zeros((2,len(full_sample[0])*6, 128))
+new_song[:,:,21:109] = np.repeat(full_sample, 6, axis=1)
+new_R_midi = pypianoroll.Track(new_song[0])
+new_L_midi = pypianoroll.Track(new_song[1])
+new_midi = pypianoroll.Multitrack(tracks=[new_R_midi, new_L_midi])
+pypianoroll.write(new_midi, 'generated_tracks/gen_two_hands_sample.mid')
 
