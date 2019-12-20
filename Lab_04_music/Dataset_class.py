@@ -122,13 +122,14 @@ class Piano_Dataset(data.Dataset):
 class Piano_Dataset_two_hands(data.Dataset):
     
     ### Initialize the dataset loading all the songs stored before as numpy objects
-    def __init__(self, filepath, transpose=[-1,0,1], sample_length=32):
-       
+    def __init__(self, filepath, transpose=[-1,0,1], sample_length=32, encode_sparse_mat=False):
+
         # initialize empty members of the dataset
         self.all_songs = {}
         self.lengths = np.array([])
         self.indexes = np.array([])
         self.sample_length = sample_length
+        self.is_encoded = encode_sparse_mat
         
         ### Get songs, their IDs, lengths and possible sequences
         for song_name in os.listdir(filepath+'/'):
@@ -141,7 +142,7 @@ class Piano_Dataset_two_hands(data.Dataset):
             # Fill the dataset with all the song transpositions
             for tune in transpose:
                 
-                # *** Program checks that we don't lose any notes with the transposition
+                # In ***, the program checks that we don't lose any notes with the transposition
                 # If YES, do not save transposed song
                 # If NO, compute the transposed song and store it
             
@@ -165,6 +166,10 @@ class Piano_Dataset_two_hands(data.Dataset):
                     transp_song[1,:,:tune] = np.roll(song[1], tune, axis=1)[:,:tune]
                     transp_name = song_name[:-4]+'_'+str(tune)
                     
+                # Encode the sparse matrix if the corresponding flag is TRUE
+                if encode_sparse_mat == True:
+                    transp_song = self.encode_mat(transp_song, song_length)
+
                 # Update class members
                 self.all_songs[transp_name] = transp_song
                 self.lengths = np.append(self.lengths, song_length)
@@ -191,13 +196,18 @@ class Piano_Dataset_two_hands(data.Dataset):
     ### Return the correct sample given the index
     def __getitem__(self, idx):
         
-        # Get the corresponding sample, the following step and its active notes
+        # Get the corresponding sample, the following step and the number of its active notes
         song_name, start = self.indexes[idx]
         start = int(start)
         song = self.all_songs[song_name]
-        
+
         sample = song[:, start : start+self.sample_length]
         following_step = song[:, start + (self.sample_length+1)]
+
+        # if the matrices were encoded, reconstruct sparse matrix
+        if self.is_encoded == True:
+            sample, following_step = self.decode_sample(sample, following_step)
+
         active_notes = np.array([sum(following_step[0]), sum(following_step[1])])
         
         # Return samples as 'float32' variables (because it is the dtype of torch default tensor)
@@ -215,9 +225,15 @@ class Piano_Dataset_two_hands(data.Dataset):
         #for song in os.listdir('numpy_piano-midi-de'): OLD
         for name, song in self.all_songs.items():
 
-            # Read midi file and get its lowest and highest note
-            all_right_active_notes += sum(song[0])
-            all_left_active_notes  += sum(song[1])
+            # Count notes in different ways, depending on the song encoding
+            if self.is_encoded:
+                for i in range(len(song[0])):
+                    all_right_active_notes[song[0,i]] += 1
+                    all_left_active_notes[song[1,i]] += 1
+            else:
+                all_right_active_notes += sum(song[0])
+                all_left_active_notes  += sum(song[1])
+            
             all_notes += len(song[0])  # equal to number of timesteps
 
         # Compute weights for each note as  '# of zeros' / '# of ones'
@@ -225,4 +241,29 @@ class Piano_Dataset_two_hands(data.Dataset):
         left_weights = (all_notes - all_left_active_notes) / all_left_active_notes
 
         return right_weights, left_weights
+
+
+    ### Function that encodes sparse matrices to array of indeces
+    def encode_mat(self, matrix, song_length):
+        mat_R_indexes = [np.where(matrix[0,i]==1)[0] for i in range(song_length)]
+        mat_L_indexes = [np.where(matrix[1,i]==1)[0] for i in range(song_length)]
+        return np.array([mat_R_indexes, mat_L_indexes])
+
+
+    ### Function that decodes an array of indeces and build the sparse matrix
+    def decode_sample(self, sample_idx, following_step_idx):
+
+        # Reconstruct sample sparse matrix
+        sample_mat = np.zeros((2,self.sample_length,88))
+        for i in range(self.sample_length):
+            sample_mat[0,i,sample_idx[0,i]] = 1
+            sample_mat[1,i,sample_idx[1,i]] = 1
+
+        # Reconstruct following_step sparse matrix
+        following_step_mat = np.zeros((2,88))
+        following_step_mat[0,following_step_idx[0]] = 1
+        following_step_mat[1,following_step_idx[1]] = 1
+
+        return sample_mat, following_step_mat
+
 

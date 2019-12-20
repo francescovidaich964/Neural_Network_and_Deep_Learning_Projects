@@ -12,7 +12,7 @@
 #              - 'sample'   : Start from the first 2 measures of a random song
 #                               (For both you should first do the pre-processing 
 #                                to convert every song to unmpy object)
-#              - 'generate' : Start from scratch 
+#              - 'generate' : Start from scratch (does not work, produce empty track)
 #
 
 
@@ -44,10 +44,10 @@ else:
 
 ########## PARAMETERS (set what you want) ############
 
-mode = 'select'
+mode = 'generate'
 
-sample_R_notes = True            # if True, sample notes (do not pick ones with higher probs)
-sample_L_notes = True   
+sample_R_notes = True            # if True, sample notes from prob distribution
+sample_L_notes = True            # if False, take notes with highest probabilities (worse results)
 
 apply_probs_corrections = True   # if True, apply penalization (if argmax) or bonus (if sample)
                                  # to notes that are played for the i-th consecutive time
