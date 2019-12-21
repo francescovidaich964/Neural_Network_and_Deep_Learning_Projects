@@ -13,7 +13,7 @@ from torch.utils import data
 class Piano_Dataset(data.Dataset):
     
     ### Initialize the dataset loading all the songs stored before as numpy objects
-    def __init__(self, filepath, transpose=[-2,-1,0,1,2], sample_length=32):
+    def __init__(self, filepath, transpose=[-1,0,1], sample_length=32):
        
         # initialize empty members of the dataset
         self.all_songs = {}
