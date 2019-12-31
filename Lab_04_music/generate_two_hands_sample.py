@@ -44,7 +44,7 @@ else:
 
 ########## PARAMETERS (set what you want) ############
 
-mode = 'generate'
+mode = 'sample'
 
 sample_R_notes = True            # if True, sample notes from prob distribution
 sample_L_notes = True            # if False, take notes with highest probabilities (worse results)
@@ -81,7 +81,7 @@ def get_sample(mode):
 
         # Load the song from the dataset
         song = np.load(npy_songs_dir + '/' + init_seq_name)
-        print('Loaded starting sample:', init_seq_name)   
+        print('\nLoaded starting sample:', init_seq_name)   
 
         # Take its beginning
         sample = song[:, : init_seq_length ]
@@ -95,14 +95,14 @@ def get_sample(mode):
         songs_list = np.array(os.listdir(npy_songs_dir+'/'))
         song_name = np.random.choice(songs_list)
         song = np.load(npy_songs_dir + '/' + song_name)
-        print('Loaded starting sample:', song_name)
+        print('\nLoaded starting sample:', song_name)
 
         # Take its beginning
         sample = song[:, : init_seq_length ]
 
     # If the mode is not allowed, print error
     else:
-        print('The typed mode is not allowed')
+        print('\nThe typed mode is not allowed')
 
     return sample
 
@@ -123,20 +123,20 @@ def penalty_val(i, a=50, b=0.5):
 
 # Bonus value for a note that is sampled that will be multiplied to its prob
 # (start from 2 and decrease exponentially to 1)
-def bonus_val(i, a=0.25):
+def bonus_val(i, a=0.25, b=1):
     if (i == 0):
         return 1.0
     else:
-        return np.exp(-a*i)+1
+        return b*np.exp(-a*i)+1
 
 
 # ---------------------------------------------------
 
 # Select notes to play using the outputs of the network 
-def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_times):
+def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_times, correction_weight=0.25):
 
     # Convert net output to numpy arrays
-    piano_probs = F.softmax(out_piano_probs[0,-1,:]).detach().numpy().squeeze()
+    piano_probs = F.softmax(out_piano_probs[0,-1,:], dim=0).detach().numpy().squeeze()
     num_notes = out_num_notes[0,-1].detach().numpy().squeeze()
     num_notes = int(num_notes.round())
 
@@ -146,8 +146,8 @@ def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_ti
 
         # If flag is True, apply penalty to notes that are played for the i-th time
         if apply_probs_corrections: 
-            piano_probs = piano_probs * [penalty_val(played_times[i]) for i in range(88)]
-            print([penalty_val(played_times[i]) for i in range(88)])
+            piano_probs = piano_probs * [penalty_val(played_times[i], correction_weight) for i in range(88)]
+            #print([penalty_val(played_times[i]) for i in range(88)])
 
         # Take notes with highest (penalized) probability
         sorted_probs = piano_probs.argsort()[::-1]
@@ -157,9 +157,9 @@ def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_ti
 
         # if flag is True, apply bonus to notes that have been sampled in previous timesteps
         if apply_probs_corrections:
-            piano_probs = piano_probs * [bonus_val(played_times[i]) for i in range(88)]
+            piano_probs = piano_probs * [bonus_val(played_times[i], correction_weight) for i in range(88)]
             piano_probs = piano_probs / np.sum(piano_probs)
-            print([bonus_val(played_times[i]) for i in range(88)])
+            #print([bonus_val(played_times[i]) for i in range(88)])
        
         notes = np.empty(num_notes)
 
@@ -209,13 +209,12 @@ for i in range(4*n_beats):
     # Predict num of notes and probs of each notes
     out_R_piano, out_R_num_notes, out_L_piano, out_L_num_notes, rnn_state = net(sample, rnn_state)
 
-    # Use function to select the notes to play given the output of the net
+    # Use function to select the notes to play given the output of the net (L should play longer notes)
     R_notes = select_notes_to_play(out_R_piano, out_R_num_notes, sample_R_notes, R_played_times)
-    L_notes = select_notes_to_play(out_L_piano, out_L_num_notes, sample_L_notes, L_played_times)
+    L_notes = select_notes_to_play(out_L_piano, out_L_num_notes, sample_L_notes, L_played_times, 0.1)
 
-    #print(out_num_notes[:,-1])
-    print(R_notes)
-    print(L_notes)
+    print('\nRight hand notes', R_notes)
+    print('Left  hand notes', L_notes)
 
     # Set the sampled notes to 1 and the others to 0
     next_R_piano = np.zeros(88, dtype=int)
@@ -229,15 +228,14 @@ for i in range(4*n_beats):
     L_played_times = np.where( next_L_piano, L_played_times+1, 0)
 
     # Store the notes of the new timestep
-    print(np.array([[next_R_piano],[next_L_piano]]).shape)
     full_sample = np.append(full_sample, [[next_R_piano],[next_L_piano]] , axis=1)
 
 
 # Now that we have the full sample, convert it to file midi
 new_song = np.zeros((2,len(full_sample[0])*6, 128))
 new_song[:,:,21:109] = np.repeat(full_sample, 6, axis=1)
-new_R_midi = pypianoroll.Track(new_song[0])
-new_L_midi = pypianoroll.Track(new_song[1])
+new_R_midi = pypianoroll.Track(new_song[0], name = 'Right hand')
+new_L_midi = pypianoroll.Track(new_song[1], name = 'Left hand')
 new_midi = pypianoroll.Multitrack(tracks=[new_R_midi, new_L_midi])
 pypianoroll.write(new_midi, 'generated_tracks/gen_two_hands_sample.mid')
 
