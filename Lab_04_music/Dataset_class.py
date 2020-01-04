@@ -7,7 +7,7 @@ from torch.utils import data
 
 
 ##############################################################################
-############# STANDARD DATASET CLASS (no multitrack for hands) ###############
+############# ORIGINAL DATASET CLASS (no multitrack for hands) ###############
 ##############################################################################
 
 class Piano_Dataset(data.Dataset):
