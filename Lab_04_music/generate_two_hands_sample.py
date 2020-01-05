@@ -115,7 +115,6 @@ def penalty_val(i, a=50, b=0.5):
     if (i == 0):
         return 1.0
     else:
-        #return (1-i/a) / ((1+b)-i/a) + b/(1+b)
         return np.exp(-b*i)
 
 
