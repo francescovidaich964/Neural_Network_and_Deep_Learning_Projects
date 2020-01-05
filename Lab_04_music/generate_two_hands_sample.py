@@ -49,8 +49,8 @@ mode = 'sample'
 sample_R_notes = True            # if True, sample notes from prob distribution
 sample_L_notes = True            # if False, take notes with highest probabilities (worse results)
 
-apply_probs_corrections = True   # if True, apply penalization (if argmax) or bonus (if sample)
-                                 # to notes that are played for the i-th consecutive time
+apply_probs_corrections = True   # if True, apply penalization (if argmax) or bonus (if sample) to
+                                 # notes that are played for the i-th consecutive time (reduce randomness)
 
 model_dir = 'trained_models/two_hands_net.pth'   # path to trained model
 npy_songs_dir = 'numpy_piano-midi-de_two_hands'  # directory with numpy songs
@@ -226,15 +226,15 @@ for i in range(4*n_beats):
     R_played_times = np.where( next_R_piano, R_played_times+1, 0)
     L_played_times = np.where( next_L_piano, L_played_times+1, 0)
 
-    # Store the notes of the new timestep
+    # Store the notes of the new timestep 
     full_sample = np.append(full_sample, [[next_R_piano],[next_L_piano]] , axis=1)
 
 
 # Now that we have the full sample, convert it to file midi
-new_song = np.zeros((2,len(full_sample[0])*6, 128))
+new_song = np.zeros((2,len(full_sample[0])*6, 128), dtype=bool)
 new_song[:,:,21:109] = np.repeat(full_sample, 6, axis=1)
 new_R_midi = pypianoroll.Track(new_song[0], name = 'Right hand')
 new_L_midi = pypianoroll.Track(new_song[1], name = 'Left hand')
-new_midi = pypianoroll.Multitrack(tracks=[new_R_midi, new_L_midi])
+new_midi = pypianoroll.Multitrack(tracks=[new_R_midi, new_L_midi], tempo=100)
 pypianoroll.write(new_midi, 'generated_tracks/gen_two_hands_sample.mid')
 

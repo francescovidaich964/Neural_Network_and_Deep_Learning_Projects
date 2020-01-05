@@ -8,7 +8,7 @@ from torch.utils import data
 
 
 ####################################################################
-############# STANDARD RNN (no multitrack for hands) ###############
+############# ORIGINAL RNN (no multitrack for hands) ###############
 ####################################################################
 
 class RNN_net(nn.Module):
