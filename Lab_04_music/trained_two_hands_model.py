@@ -12,40 +12,12 @@
 #              - 'sample_song'   : Start from the first 2 measures of a random song
 #                                  (For both you should first do the pre-processing 
 #                                  to convert every song to unmpy object)
-#              - 'generate'      : Start from scratch (does not work, produce empty track)
 #
-
-
-########## PARAMETERS (set what you want) ############
-
-mode = 'sample_song'
-
-init_seq_name = 'debussy_deb_prel.npy'           #  IF mode = 'select_song', choose song here
-model_dir = 'trained_models/two_hands_net.pth'   # path to trained model
-npy_songs_dir = 'numpy_piano-midi-de_two_hands'  # directory with numpy songs
-
-
-init_seq_length = 64            # number of timesteps of initial sequence
-timesteps_to_generate = 120     # generate (timesteps/4) beats of music
-
-# Don't change from here to obtain best results
-
-sample_R_notes = True           # if True, sample notes from prob distribution
-sample_L_notes = True           # if False, take notes with highest probabilities (worse results)
-
-apply_probs_corrections = True  # if True, apply penalization (if argmax) or bonus (if sample) to
-                                # notes that are played for the i-th consecutive time (reduce randomness
-
-######################################################
-
-
-
-
-
 
 
 # Import libraries
 import os
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -71,18 +43,58 @@ else:
 
 
 
+
+################### PARAMETERS #####################
+
+parser = argparse.ArgumentParser(description='Generate a sample starting from the beginnig of one song of the dataset')
+
+parser.add_argument('--seed', type=str, default=None, help='Choose the starting song from the pre-processed dataset (random if not used)')
+parser.add_argument('--model_dir', type=str, default='trained_models/two_hands_net.pth', help='Network model directory')
+parser.add_argument('--npy_dataset', type=str, default='numpy_piano-midi-de_two_hands', help='Pre-processed dataset directory')
+
+parser.add_argument('--seed_length', type=int, default=32, help='Number of timesteps of initial sequence')
+parser.add_argument('--length', type=int, default=96, help='Number of timesteps to be generated (i.e. length/4 beats of music)')
+
+
+# Don't change from here to obtain best results
+
+sample_R_notes = True           # if True, sample notes from prob distribution
+sample_L_notes = True           # if False, take notes with highest probabilities (worse results)
+
+apply_probs_corrections = True  # if True, apply penalization (if argmax) or bonus (if sample) to
+                                # notes that are played for the i-th consecutive time (reduce randomness
+
+######################################################
+
+
+
+
+# Store all args in old variables
+args = parser.parse_args()
+
+model_dir = args.model_dir
+npy_songs_dir = args.npy_dataset
+init_seq_length = args.seed_length
+timesteps_to_generate = args.length
+
+if args.seed==None:
+    mode = 'sample_song'
+else:
+    mode = 'select_song'
+    init_seq_name = args.seed
+
+
+
+
+
 ################### FUNCTIONS ########################
 
 # Function to get the initial sequence following the selected mode
 def get_sample(mode):
 
-    # If mode is 'generate': Start from a null sequence
-    if (mode == 'generate'):
-        sample = np.zeros((2, init_seq_length, 88))
-
     # If mode is 'select', Start from the beginning of a 
     # selected song of the dataset
-    elif (mode == 'select_song'):
+    if (mode == 'select_song'):
 
         # Load the song from the dataset
         song = np.load(npy_songs_dir + '/' + init_seq_name)
