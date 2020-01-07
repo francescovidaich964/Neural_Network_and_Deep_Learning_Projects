@@ -3,22 +3,49 @@
 #                   RNN Testing Script                  #
 #########################################################
 #
-# This scripts needs to be in the same directory of 
-# the folder "trained_models" and "piano-midi-de"
-# to work, but other directories can be passed as arguments
+# This scripts needs to be in the same directory of the
+# folders "trained_models" and "numpy_piano-midi-de_two_hands"
+# to work, so you will need to execute the 
 #
 # Choose the number of beats to generate and the initial
-# conditions:  - 'select'   : Start from the first 2 measures of a selected song
-#              - 'sample'   : Start from the first 2 measures of a random song
-#                               (For both you should first do the pre-processing 
-#                                to convert every song to unmpy object)
-#              - 'generate' : Start from scratch (does not work, produce empty track)
+# conditions:  - 'select_song'   : Start from the first 2 measures of a selected song
+#              - 'sample_song'   : Start from the first 2 measures of a random song
+#                                  (For both you should first do the pre-processing 
+#                                  to convert every song to unmpy object)
+#              - 'generate'      : Start from scratch (does not work, produce empty track)
 #
+
+
+########## PARAMETERS (set what you want) ############
+
+mode = 'sample_song'
+
+model_dir = 'trained_models/two_hands_net.pth'   # path to trained model
+npy_songs_dir = 'numpy_piano-midi-de_two_hands'  # directory with numpy songs
+init_seq_name = 'beeth_appass_2.npy'             #  IF mode = 'select_song', choose song here
+
+
+init_seq_length = 32            # number of timesteps of initial sequence
+n_beats = 24                    # generate 4*n_beats timesteps
+
+sample_R_notes = True           # if True, sample notes from prob distribution
+sample_L_notes = True           # if False, take notes with highest probabilities (worse results)
+
+apply_probs_corrections = True  # if True, apply penalization (if argmax) or bonus (if sample) to
+                                # notes that are played for the i-th consecutive time (reduce randomness
+
+######################################################
+
+
+
+
+
 
 
 # Import libraries
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -42,30 +69,6 @@ else:
 
 
 
-########## PARAMETERS (set what you want) ############
-
-mode = 'sample'
-
-sample_R_notes = True            # if True, sample notes from prob distribution
-sample_L_notes = True            # if False, take notes with highest probabilities (worse results)
-
-apply_probs_corrections = True   # if True, apply penalization (if argmax) or bonus (if sample) to
-                                 # notes that are played for the i-th consecutive time (reduce randomness)
-
-model_dir = 'trained_models/two_hands_net.pth'   # path to trained model
-npy_songs_dir = 'numpy_piano-midi-de_two_hands'  # directory with numpy songs
-init_seq_name = 'beeth_appass_2.npy'             # if 'select', choose song here
-
-n_beats = 24           # generate 4*n_beats timesteps
-init_seq_length = 32   # number of timesteps of initial sequence
-
-######################################################
-
-
-
-
-
-
 ################### FUNCTIONS ########################
 
 # Function to get the initial sequence following the selected mode
@@ -77,7 +80,7 @@ def get_sample(mode):
 
     # If mode is 'select', Start from the beginning of a 
     # selected song of the dataset
-    elif (mode == 'select'):
+    elif (mode == 'select_song'):
 
         # Load the song from the dataset
         song = np.load(npy_songs_dir + '/' + init_seq_name)
@@ -89,7 +92,7 @@ def get_sample(mode):
 
     # If mode is 'sample', Start from the beginning of a 
     # random song of the dataset
-    elif (mode == 'sample'):
+    elif (mode == 'sample_song'):
 
         # Pick one song from the dataset
         songs_list = np.array(os.listdir(npy_songs_dir+'/'))
@@ -110,18 +113,20 @@ def get_sample(mode):
 # ---------------------------------------------------
 
 # Penalty value for a note that is played for the i-th consecutive time
-# (start from 1 and decreases over time, they will be multiplied to probs)
-def penalty_val(i, a=50, b=0.5):
+# that will be multiplied to its prob
+# (start from 1 and decreases over time)
+def penalty_val(i, a=0.5):
     if (i == 0):
         return 1.0
     else:
-        return np.exp(-b*i)
+        return np.exp(-a*i)
 
 
 # ---------------------------------------------------
 
-# Bonus value for a note that is sampled that will be multiplied to its prob
-# (start from 2 and decrease exponentially to 1)
+# Bonus value for a note that is sampled for the i-th consecutive time 
+# that will be multiplied to its prob
+# (start from (1+b) and decreases exponentially to 1)
 def bonus_val(i, a=0.25, b=1):
     if (i == 0):
         return 1.0
@@ -183,7 +188,7 @@ def select_notes_to_play(out_piano_probs, out_num_notes, sample_notes, played_ti
 
 
 # Load trained network (use same network parameters)
-dropout_prob = 0.4
+dropout_prob = 0.5
 net = RNN_two_hands_net(dropout_prob)
 net.to(device)
 
@@ -238,3 +243,10 @@ new_L_midi = pypianoroll.Track(new_song[1], name = 'Left hand')
 new_midi = pypianoroll.Multitrack(tracks=[new_R_midi, new_L_midi], tempo=100)
 pypianoroll.write(new_midi, 'generated_tracks/gen_two_hands_sample.mid')
 
+# Print the generted midi song
+low_note, high_note = new_midi.get_active_pitch_range()
+fig, axs = new_midi.plot(xtick='step')
+axs[0].set_ylim(low_note-6,high_note+6)
+axs[1].set_ylim(low_note-6,high_note+6)
+plt.rcParams["figure.figsize"] = [8,6]
+plt.savefig('generated_tracks/plot_two_hands_sample.png')
