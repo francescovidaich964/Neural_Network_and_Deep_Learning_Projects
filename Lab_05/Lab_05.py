@@ -57,6 +57,8 @@ for ax in axs.flatten():
 plt.tight_layout()
 
 
+
+
 #%% Define the network architecture
     
 class Autoencoder(nn.Module):
@@ -119,7 +121,7 @@ class Autoencoder(nn.Module):
         return x
 
 ### Initialize the network
-encoded_space_dim = 6
+encoded_space_dim = 2
 net = Autoencoder(encoded_space_dim=encoded_space_dim)
 
 
@@ -236,7 +238,7 @@ if training:
 
 
 # Load network parameters    
-net.load_state_dict(torch.load('net_params.pth', map_location='cpu'))
+net.load_state_dict(torch.load('net_params_2.pth', map_location='cpu'))
 
 ### Get the encoded representation of the test samples
 encoded_samples = []
