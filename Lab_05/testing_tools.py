@@ -3,6 +3,10 @@
 # Here the already provided tools for testing the network are
 # reorganized into funtions to be used in the notebook when needed
 
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import random
 
 
 # Plot and store the comparison image between an original 
@@ -11,7 +15,7 @@ def plot_comparison(net, sample, store_fig=False):
     
     # build comparison image
     #img = test_dataset[0][0].unsqueeze(0).to(device)
-    img = sample[0].unsqueeze(0).to(device)
+    img = sample[0].unsqueeze(0).to(net.device)
     net.eval()
     with torch.no_grad():
         rec_img  = net(img)

@@ -6,13 +6,20 @@
 
 import torch
 from torch import nn
+
 import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+
 
 
 class Autoencoder(nn.Module):
     
-    def __init__(self, encoded_space_dim, dropout=0):
+    def __init__(self, encoded_space_dim, device, dropout=0):
         super().__init__()
+        
+        # Store the device as a class member
+        self.device = device
         
         ### Encoder
         self.encoder_cnn = nn.Sequential(
@@ -81,17 +88,23 @@ class Autoencoder(nn.Module):
     # -------- New functions ---------
     
     ### Function that perform an epoch of the training
-    def train_epoch(self, dataloader, loss_fn, optim, log=True):
+    def train_epoch(self, dataloader, loss_fn, optim, denoise_mode=False, log=False):
         
         # set training mode
         self.train()
         
         for sample_batch in dataloader:
+            
             # Extract data and move tensors to the selected device
-            image_batch = sample_batch[0]#.to(device)
-            # Forward pass
+            image_batch = sample_batch[0].to(self.device)
+            
+            # Forward pass (if denoise_mode, use original image as target)
             output = self.forward(image_batch)
-            loss = loss_fn(output, image_batch)
+            if denoise_mode == False:
+                loss = loss_fn(output, image_batch)
+            else:
+                loss = loss_fn(output, sample_batch[1].to(self.device))
+            
             # Backward pass
             optim.zero_grad()
             loss.backward()
@@ -104,24 +117,32 @@ class Autoencoder(nn.Module):
          
         
     ### Testing function
-    def test_epoch(self, dataloader, loss_fn):
+    def test_epoch(self, dataloader, loss_fn, denoise_mode=False):
         
         # Validation
         self.eval() # Evaluation mode (e.g. disable dropout)
         
         with torch.no_grad(): # No need to track the gradients
             
-            conc_out = torch.Tensor().float()
-            conc_label = torch.Tensor().float()
+            conc_out = torch.Tensor().float().to(self.device)
+            conc_label = torch.Tensor().float().to(self.device)
             
             for sample_batch in dataloader:
+                
                 # Extract data and move tensors to the selected device
-                image_batch = sample_batch[0]#.to(device)
+                image_batch = sample_batch[0].to(self.device)
+               
                 # Forward pass
                 out = self.forward(image_batch)
-                # Concatenate with previous outputs
-                conc_out = torch.cat([conc_out, out.cpu()])
-                conc_label = torch.cat([conc_label, image_batch.cpu()]) 
+                
+                # Concatenate with previous outputs 
+                # (if denoise_mode, use original image as target)
+                conc_out = torch.cat([conc_out, out])#.cpu()])
+                
+                if denoise_mode == False:
+                    conc_label = torch.cat([conc_label, image_batch]) #.cpu()])
+                else:
+                    conc_label = torch.cat([conc_label, sample_batch[1].to(self.device)]) #.cpu()])
             
             # Evaluate global loss
             val_loss = loss_fn(conc_out, conc_label)
@@ -131,37 +152,49 @@ class Autoencoder(nn.Module):
     
     
     ### Function to get the encoded representation of an input dataset
-    def get_enc_representation(dataset, net):
-        encoded_samples = []
+    def get_enc_representation(self, dataset, return_label=False):
+        encoded_samples = np.array([])
 
         for sample in tqdm(dataset):
-            img = sample[0].unsqueeze(0)
+            img = sample[0].unsqueeze(0).to(self.device)
             label = sample[1]
 
             # Encode image
-            net.eval()
+            self.eval()
             with torch.no_grad():
                 encoded_img  = self.encode(img)
 
             # Append to list
-            encoded_samples.append((encoded_img.flatten().numpy(), label))
+            np_encoded_img = encoded_img.flatten().cpu().numpy() 
+            if return_label:
+                encoded_samples = np.append(encoded_samples, (np_encoded_img, label))
+            else:
+                if encoded_samples.size == 0:
+                    encoded_samples = np.array([np_encoded_img,])
+                else:
+                    encoded_samples = np.append(encoded_samples, [np_encoded_img], axis=0)
 
         return encoded_samples 
     
     
     
-    ### Function that plots the generated image decoded from the given enc_sample
-    def generate_from_encoded_sample(enc_sample, net):
+    ### Function that plots or store the generated image decoded from the given enc_sample
+    def generate_from_encoded_sample(self, enc_sample, filename=None):
 
         # Decode the sample to produce the image
-        net.eval()
+        self.eval()
         with torch.no_grad():
             encoded_value = torch.tensor(enc_sample).float().unsqueeze(0)
-            new_img  = net.decode(encoded_value)
+            new_img  = self.decode(encoded_value)
 
-        # plot the generated image
-        plt.figure(figsize=(12,10))
-        plt.imshow(new_img.squeeze().numpy(), cmap='gist_gray')
-        plt.show()
+        # plot the generated image, store it if required
+        plt.figure(figsize=(8,6))
+        plt.imshow(new_img.squeeze().cpu().numpy(), cmap='gist_gray')
+        if filename != None: 
+            plt.savefig(filename)
+        else:
+            plt.show()
+        plt.close()
 
         return
+    
