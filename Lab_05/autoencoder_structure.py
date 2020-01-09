@@ -4,6 +4,11 @@
 # Inside the class we also define different methods 
 # used for training and testing the model.
 
+import torch
+from torch import nn
+import numpy as np
+
+
 class Autoencoder(nn.Module):
     
     def __init__(self, encoded_space_dim, dropout=0):
@@ -76,14 +81,14 @@ class Autoencoder(nn.Module):
     # -------- New functions ---------
     
     ### Function that perform an epoch of the training
-    def train_epoch(self, dataloader, loss_fn, optimizer, log=True):
+    def train_epoch(self, dataloader, loss_fn, optim, log=True):
         
         # set training mode
         self.train()
         
         for sample_batch in dataloader:
             # Extract data and move tensors to the selected device
-            image_batch = sample_batch[0].to(device)
+            image_batch = sample_batch[0]#.to(device)
             # Forward pass
             output = self.forward(image_batch)
             loss = loss_fn(output, image_batch)
@@ -99,7 +104,7 @@ class Autoencoder(nn.Module):
          
         
     ### Testing function
-    def test_epoch(self, dataloader, loss_fn, optimizer):
+    def test_epoch(self, dataloader, loss_fn):
         
         # Validation
         self.eval() # Evaluation mode (e.g. disable dropout)
@@ -111,7 +116,7 @@ class Autoencoder(nn.Module):
             
             for sample_batch in dataloader:
                 # Extract data and move tensors to the selected device
-                image_batch = sample_batch[0].to(device)
+                image_batch = sample_batch[0]#.to(device)
                 # Forward pass
                 out = self.forward(image_batch)
                 # Concatenate with previous outputs

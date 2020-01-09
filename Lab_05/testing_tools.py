@@ -7,10 +7,11 @@
 
 # Plot and store the comparison image between an original 
 # sample and the reconstructed one (already provided)
-def plot_comparison(net, test_dataset):
+def plot_comparison(net, sample, store_fig=False):
     
     # build comparison image
-    img = test_dataset[0][0].unsqueeze(0).to(device)
+    #img = test_dataset[0][0].unsqueeze(0).to(device)
+    img = sample[0].unsqueeze(0).to(device)
     net.eval()
     with torch.no_grad():
         rec_img  = net(img)
@@ -18,38 +19,17 @@ def plot_comparison(net, test_dataset):
     axs[0].imshow(img.cpu().squeeze().numpy(), cmap='gist_gray')
     axs[0].set_title('Original image')
     axs[1].imshow(rec_img.cpu().squeeze().numpy(), cmap='gist_gray')
-    axs[1].set_title('Reconstructed image (EPOCH %d)' % (epoch + 1))
+    axs[1].set_title('Reconstructed image')
     plt.tight_layout()
     plt.pause(0.1)
     
-    # Save figures
-    os.makedirs('autoencoder_progress_%d_features' % encoded_space_dim, exist_ok=True)
-    plt.savefig('autoencoder_progress_%d_features/epoch_%d.png' % (encoded_space_dim, epoch + 1))
+    # Show figure and store them if desired
+    if store_fig:
+        plt.savefig('Comparison_plot.png')
     plt.show()
     plt.close()
     return
 
-
-
-
-
-# function to get the encoded representation of some input dataset
-def get_encoded_representation(dataset, net):
-    encoded_samples = []
-    
-    for sample in tqdm(dataset):
-        img = sample[0].unsqueeze(0)
-        label = sample[1]
-        
-        # Encode image
-        net.eval()
-        with torch.no_grad():
-            encoded_img  = net.encode(img)
-            
-        # Append to list
-        encoded_samples.append((encoded_img.flatten().numpy(), label))
-    
-    return encoded_samples  
 
 
 
@@ -78,24 +58,6 @@ def plot_encoded_space(encoded_samples, n_samples_to_plot = 1000):
     plt.grid(True)
     plt.legend([plt.Line2D([0], [0], ls='', marker='.', color=c, label=l) for l, c in color_map.items()], color_map.keys())
     plt.tight_layout()
-    plt.show()
-    
-    return
-
-
-
-
-def decode_custom_sample(enc_sample, net):
-    
-    # Decode the sample to produce the image
-    net.eval()
-    with torch.no_grad():
-        encoded_value = torch.tensor(enc_sample).float().unsqueeze(0)
-        new_img  = net.decode(encoded_value)
-
-    # plot the generated image
-    plt.figure(figsize=(12,10))
-    plt.imshow(new_img.squeeze().numpy(), cmap='gist_gray')
     plt.show()
     
     return
