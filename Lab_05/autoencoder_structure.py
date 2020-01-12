@@ -167,7 +167,10 @@ class Autoencoder(nn.Module):
             # Append to list
             np_encoded_img = encoded_img.flatten().cpu().numpy() 
             if return_label:
-                encoded_samples = np.append(encoded_samples, (np_encoded_img, label))
+                if encoded_samples.size == 0:
+                    encoded_samples = np.array( [[np_encoded_img, label],] )
+                else:
+                    encoded_samples = np.append(encoded_samples, [[np_encoded_img, label]], axis=0)
             else:
                 if encoded_samples.size == 0:
                     encoded_samples = np.array([np_encoded_img,])
