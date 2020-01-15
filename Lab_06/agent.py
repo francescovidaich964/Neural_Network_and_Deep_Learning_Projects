@@ -28,11 +28,11 @@ class Agent:
     # update function (Sarsa and Q-learning)
     def update(self, state, action, reward, next_state, alpha, epsilon):
 
-        # find the next action (greedy for Q-learning, using the decision policy for Sarsa)
+        # find the next action (greedy for Q-learning, using the choosen policy for SARSA)
         if (self.sarsa):
-            next_action = self.select_action(next_state, epsilon)  # eps-greedy or softmax
+            next_action = self.select_action(next_state, epsilon)  # eps-greedy or softmax (on-policy)
         else:
-            next_action = self.select_action(next_state, 0)  # greedy
+            next_action = self.select_action(next_state, 0)  # greedy (off-policy)
 
         # calculate long-term reward with bootstrap method
         observed = reward + self.discount * self.qtable[next_state, next_action]
@@ -68,3 +68,5 @@ class Agent:
             plt.show()
         else:
             plt.savefig(filename)
+
+        
