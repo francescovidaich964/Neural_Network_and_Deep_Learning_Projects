@@ -65,6 +65,6 @@ mean_rewards_per_step = training.train_agent(learner, x, y, initial, goal, episo
 learner.visualize_values(x,y)
 
 # Build GIF of the episode
-print('Start building GIF of the episode')
+print('\nStart building GIF of the episode\n')
 training.play_episode_gif('trained_model_episode.gif', learner, x, y,
                           initial, goal, walls, episode_length=168)
