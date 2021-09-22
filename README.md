@@ -8,7 +8,7 @@ All assigned projects are descripted and explained in each "LabXX_Vidaich_report
 ## Lab 01: Introduction
 This contains the notebooks of the first Lab lesson, where the basic concepts of python where explored with some examples, also regarding simple technics to train a model. 
 
-No project were assignated to this lab, so the code was let untouched.
+No project were assignated to this lab, so the code was left untouched.
 
 
 ## Lab 02: Implementation of a NN with NumPy
